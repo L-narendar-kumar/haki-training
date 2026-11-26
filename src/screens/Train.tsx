@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ExerciseList } from '../components/ExercisePicker'
 import { Modal, SystemWindow } from '../components/ui'
-import { EXERCISE_BY_ID, PLANS } from '../data/exercises'
+import { EXERCISE_BY_ID } from '../data/exercises'
 import {
   addExercise,
   addSet,
@@ -9,9 +9,11 @@ import {
   finishWorkout,
   removeExercise,
   removeSet,
+  startPlannedWorkout,
   startWorkout,
-  workoutXp,
+  todaysPlanIndex,
 } from '../game/engine'
+import { workoutXp } from '../game/progression'
 import { formatSet } from '../game/util'
 import { useGame, useGameState } from '../store'
 import type { WorkoutEntry, WorkoutSet } from '../types'
@@ -34,41 +36,65 @@ export function Train() {
   const { act } = useGame()
 
   if (!s.active) {
+    const todayIdx = todaysPlanIndex(s)
+    const today = todayIdx !== null ? s.plan.days[todayIdx] : null
     return (
       <div className="space-y-4">
-        <SystemWindow title="Training">
-          <p className="text-sm text-ink/80">
-            Start a session, add exercises and log each set. Finishing the workout grants XP and counts toward
-            today’s quests.
-          </p>
-          <button className="btn-sys mt-4 w-full py-3" onClick={() => act((st) => startWorkout(st))}>
-            Begin empty workout
-          </button>
+        <SystemWindow title="Today">
+          {today ? (
+            <>
+              <div className="font-display text-xl font-bold">{today.name}</div>
+              <div className="mt-1 text-xs text-mute">
+                {today.exercises.map((e) => EXERCISE_BY_ID[e.exerciseId]?.name).join(' · ')}
+              </div>
+              <button
+                className="btn-sys mt-4 w-full py-3"
+                onClick={() => act((st) => startPlannedWorkout(st, todayIdx!))}
+              >
+                Start today&rsquo;s session
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-ink/80">
+                Rest day. Do a light walk or stretch for the recovery quest, or train anyway if you feel good.
+              </p>
+              <button
+                className="btn-sys mt-4 w-full py-3"
+                onClick={() =>
+                  act((st) => addExercise(addExercise(startWorkout(st), 'walk'), 'mobility_flow'))
+                }
+              >
+                Start recovery session
+              </button>
+            </>
+          )}
         </SystemWindow>
 
-        <SystemWindow title="Start from a plan">
-          <div className="space-y-3">
-            {PLANS.flatMap((plan) =>
-              plan.days.map((day) => (
+        <SystemWindow title="Other sessions">
+          <div className="space-y-2">
+            {s.plan.days.map((day, i) =>
+              i === todayIdx ? null : (
                 <button
-                  key={`${plan.id}-${day.name}`}
+                  key={i}
                   className="w-full rounded border border-edge/70 p-3 text-left active:bg-sys/10"
-                  onClick={() =>
-                    act((st) => day.exercises.reduce((acc, ex) => addExercise(acc, ex.id), startWorkout(st)))
-                  }
+                  onClick={() => act((st) => startPlannedWorkout(st, i))}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-semibold">
-                      {plan.name} <span className="text-mute">· {day.name}</span>
+                      {String.fromCharCode(65 + i)} · {day.name}
                     </span>
                     <span className="text-xs text-sys">Start ›</span>
                   </div>
-                  <div className="mt-1 text-xs text-mute">
-                    {day.exercises.map((e) => EXERCISE_BY_ID[e.id].name).join(' · ')}
-                  </div>
                 </button>
-              )),
+              ),
             )}
+            <button
+              className="w-full rounded border border-dashed border-edge/70 p-3 text-left text-sm text-mute"
+              onClick={() => act((st) => startWorkout(st))}
+            >
+              + Empty workout
+            </button>
           </div>
         </SystemWindow>
       </div>
@@ -98,7 +124,8 @@ function ActiveWorkout() {
             {active.entries.length} exercises · {sets} sets
           </span>
           <span>
-            Reward: <span className="text-gold">+{sets > 0 ? workoutXp(sets, s.player.penaltyActive) : 0} XP</span>
+            Reward:{' '}
+            <span className="text-gold">+{workoutXp(active.entries, s.profile.goal, s.player.penaltyActive)} XP</span>
           </span>
         </div>
       </SystemWindow>
@@ -219,6 +246,12 @@ function EntryCard({ entry, index }: { entry: WorkoutEntry; index: number }) {
         <div>
           <div className="font-display text-lg font-bold">{ex.name}</div>
           <div className="text-xs text-mute">{ex.primary.join(', ')}</div>
+          {entry.target && (
+            <div className="mt-1 text-xs">
+              Target: <span className="font-semibold text-gold">{entry.target}</span>
+              <span className="text-mute"> · {entry.sets.length} done</span>
+            </div>
+          )}
         </div>
         <button
           aria-label={`Remove ${ex.name}`}

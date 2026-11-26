@@ -1,4 +1,6 @@
-import type { Category, Exercise } from '../types'
+import type { Category, Equipment, Exercise, Limitation } from '../types'
+
+type BaseExercise = Omit<Exercise, 'needs' | 'avoidFor' | 'compound'>
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   chest: 'Chest',
@@ -8,9 +10,10 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   arms: 'Arms',
   core: 'Core',
   cardio: 'Cardio',
+  mobility: 'Mobility',
 }
 
-export const EXERCISES: Exercise[] = [
+const BASE: BaseExercise[] = [
   // ---------- Chest ----------
   {
     id: 'pushup',
@@ -380,110 +383,159 @@ export const EXERCISES: Exercise[] = [
     steps: ['Set seat height so your knee is slightly bent at the bottom.', 'Keep a steady cadence.'],
     tips: ['Great low-impact option for rest days.'],
   },
+  // ---------- Added for generated plans ----------
+  {
+    id: 'goblet_squat',
+    name: 'Goblet Squat',
+    category: 'legs',
+    mode: 'reps_weight',
+    equipment: 'One dumbbell',
+    primary: ['Quads', 'Glutes', 'Core'],
+    steps: [
+      'Hold a dumbbell vertically against your chest, elbows pointing down.',
+      'Feet shoulder-width, squat down between your knees keeping your chest tall.',
+      'Go as deep as you can with a flat back, then drive up.',
+    ],
+    tips: ['Great squat teacher for beginners.'],
+  },
+  {
+    id: 'db_row',
+    name: 'One-Arm Dumbbell Row',
+    category: 'back',
+    mode: 'reps_weight',
+    equipment: 'Dumbbell, bench',
+    primary: ['Lats', 'Upper back'],
+    steps: [
+      'One hand and knee on a bench, back flat, dumbbell hanging in the other hand.',
+      'Pull the dumbbell to your hip, elbow close to your body.',
+      'Lower with control. Do all reps, then switch sides.',
+    ],
+    tips: ['Count reps per side.'],
+  },
+  {
+    id: 'db_bench',
+    name: 'Dumbbell Floor/Bench Press',
+    category: 'chest',
+    mode: 'reps_weight',
+    equipment: 'Dumbbells',
+    primary: ['Chest', 'Triceps'],
+    steps: [
+      'Lie on a bench (or the floor) with dumbbells over your chest.',
+      'Lower until elbows are slightly below your torso (or touch the floor).',
+      'Press back up.',
+    ],
+    tips: ['Log ONE dumbbell’s weight.'],
+  },
+  {
+    id: 'glute_bridge',
+    name: 'Glute Bridge',
+    category: 'legs',
+    mode: 'reps',
+    equipment: 'Bodyweight',
+    primary: ['Glutes', 'Hamstrings'],
+    steps: [
+      'Lie on your back, knees bent, feet flat near your hips.',
+      'Squeeze your glutes and lift your hips until your body is straight from knees to shoulders.',
+      'Pause, then lower slowly.',
+    ],
+    tips: ['Knee- and back-friendly leg exercise.'],
+  },
+  {
+    id: 'superman',
+    name: 'Superman Hold',
+    category: 'back',
+    mode: 'time',
+    equipment: 'Bodyweight',
+    primary: ['Lower back', 'Glutes', 'Upper back'],
+    steps: [
+      'Lie face down with arms stretched in front.',
+      'Lift your arms, chest and legs a few centimetres off the floor.',
+      'Hold, breathing steadily.',
+    ],
+    tips: ['Small lift, long hold. Don’t crank your neck up.'],
+  },
+  {
+    id: 'mountain_climber',
+    name: 'Mountain Climber',
+    category: 'core',
+    mode: 'reps',
+    equipment: 'Bodyweight',
+    primary: ['Core', 'Conditioning'],
+    steps: [
+      'Start in a high plank.',
+      'Drive one knee toward your chest, then switch legs quickly.',
+    ],
+    tips: ['Count each leg as one rep.'],
+  },
+  {
+    id: 'walk',
+    name: 'Brisk Walk',
+    category: 'cardio',
+    mode: 'time',
+    equipment: 'None',
+    primary: ['Heart & lungs', 'Recovery'],
+    steps: ['Walk at a pace that raises your breathing but still lets you talk.'],
+    tips: ['Perfect for rest days and fat-loss goals.'],
+  },
+  {
+    id: 'mobility_flow',
+    name: 'Mobility & Stretching',
+    category: 'mobility',
+    mode: 'time',
+    equipment: 'Mat',
+    primary: ['Hips', 'Shoulders', 'Spine'],
+    steps: [
+      'Move through gentle stretches: hip flexors, hamstrings, chest, shoulders.',
+      'Hold each stretch 30–45 seconds and breathe slowly.',
+    ],
+    tips: ['Never stretch into pain.'],
+  },
 ]
+
+/** Equipment needed, who should avoid it, and whether it's a big compound lift. */
+const META: Record<string, { needs: Equipment; avoidFor?: Limitation[]; compound?: boolean }> = {
+  pushup: { needs: 'none', avoidFor: ['wrists'] },
+  bench_press: { needs: 'gym', avoidFor: ['shoulders'], compound: true },
+  db_incline_press: { needs: 'dumbbells', avoidFor: ['shoulders'] },
+  db_bench: { needs: 'dumbbells', compound: true },
+  dips: { needs: 'gym', avoidFor: ['shoulders', 'wrists'] },
+  pullup: { needs: 'gym', compound: true },
+  barbell_row: { needs: 'gym', avoidFor: ['lower_back'], compound: true },
+  db_row: { needs: 'dumbbells' },
+  lat_pulldown: { needs: 'gym' },
+  deadlift: { needs: 'gym', avoidFor: ['lower_back'], compound: true },
+  squat_bw: { needs: 'none', avoidFor: ['knees'] },
+  back_squat: { needs: 'gym', avoidFor: ['knees', 'lower_back'], compound: true },
+  goblet_squat: { needs: 'dumbbells', avoidFor: ['knees'], compound: true },
+  lunge: { needs: 'none', avoidFor: ['knees'] },
+  rdl: { needs: 'dumbbells', avoidFor: ['lower_back'], compound: true },
+  glute_bridge: { needs: 'none' },
+  calf_raise: { needs: 'none' },
+  ohp: { needs: 'dumbbells', avoidFor: ['shoulders', 'lower_back'], compound: true },
+  lateral_raise: { needs: 'dumbbells', avoidFor: ['shoulders'] },
+  pike_pushup: { needs: 'none', avoidFor: ['shoulders', 'wrists'] },
+  bicep_curl: { needs: 'dumbbells' },
+  tricep_dip_bench: { needs: 'none', avoidFor: ['shoulders', 'wrists'] },
+  skull_crusher: { needs: 'dumbbells' },
+  plank: { needs: 'none' },
+  situp: { needs: 'none', avoidFor: ['lower_back'] },
+  hanging_leg_raise: { needs: 'gym' },
+  burpee: { needs: 'none', avoidFor: ['knees', 'wrists'] },
+  mountain_climber: { needs: 'none', avoidFor: ['wrists'] },
+  superman: { needs: 'none' },
+  run: { needs: 'none', avoidFor: ['knees'] },
+  jump_rope: { needs: 'none', avoidFor: ['knees'] },
+  cycling: { needs: 'none' },
+  walk: { needs: 'none' },
+  mobility_flow: { needs: 'none' },
+}
+
+export const EXERCISES: Exercise[] = BASE.map((e) => {
+  const m = META[e.id]
+  if (!m) throw new Error(`missing META for ${e.id}`)
+  return { ...e, needs: m.needs, avoidFor: m.avoidFor ?? [], compound: m.compound ?? false }
+})
 
 export const EXERCISE_BY_ID: Record<string, Exercise> = Object.fromEntries(
   EXERCISES.map((e) => [e.id, e]),
 )
-
-export interface PlanDay {
-  name: string
-  exercises: { id: string; sets: number; reps: string }[]
-}
-
-export interface Plan {
-  id: string
-  name: string
-  level: string
-  perWeek: string
-  description: string
-  days: PlanDay[]
-}
-
-export const PLANS: Plan[] = [
-  {
-    id: 'home_bodyweight',
-    name: 'Home Awakening',
-    level: 'Beginner',
-    perWeek: '3 days',
-    description: 'No equipment needed. Build the base before touching iron.',
-    days: [
-      {
-        name: 'Full Body',
-        exercises: [
-          { id: 'pushup', sets: 3, reps: '8–15' },
-          { id: 'squat_bw', sets: 3, reps: '15–20' },
-          { id: 'lunge', sets: 3, reps: '10/leg' },
-          { id: 'pike_pushup', sets: 3, reps: '6–10' },
-          { id: 'plank', sets: 3, reps: '30–60 s' },
-          { id: 'burpee', sets: 2, reps: '10' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'full_body_gym',
-    name: 'Iron Foundation',
-    level: 'Beginner',
-    perWeek: '3 days (A/B alternating)',
-    description: 'Classic gym full-body routine. Add a little weight each week.',
-    days: [
-      {
-        name: 'Day A',
-        exercises: [
-          { id: 'back_squat', sets: 3, reps: '5–8' },
-          { id: 'bench_press', sets: 3, reps: '5–8' },
-          { id: 'barbell_row', sets: 3, reps: '8–10' },
-          { id: 'plank', sets: 3, reps: '45 s' },
-        ],
-      },
-      {
-        name: 'Day B',
-        exercises: [
-          { id: 'deadlift', sets: 3, reps: '5' },
-          { id: 'ohp', sets: 3, reps: '6–8' },
-          { id: 'lat_pulldown', sets: 3, reps: '8–12' },
-          { id: 'hanging_leg_raise', sets: 3, reps: '8–12' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'ppl',
-    name: 'Push · Pull · Legs',
-    level: 'Intermediate',
-    perWeek: '3–6 days',
-    description: 'Split routine for more volume per muscle. Run it once or twice a week.',
-    days: [
-      {
-        name: 'Push',
-        exercises: [
-          { id: 'bench_press', sets: 4, reps: '6–8' },
-          { id: 'ohp', sets: 3, reps: '8–10' },
-          { id: 'db_incline_press', sets: 3, reps: '8–12' },
-          { id: 'lateral_raise', sets: 3, reps: '12–15' },
-          { id: 'skull_crusher', sets: 3, reps: '10–12' },
-        ],
-      },
-      {
-        name: 'Pull',
-        exercises: [
-          { id: 'deadlift', sets: 3, reps: '5' },
-          { id: 'pullup', sets: 4, reps: 'max' },
-          { id: 'barbell_row', sets: 3, reps: '8–10' },
-          { id: 'bicep_curl', sets: 3, reps: '10–12' },
-        ],
-      },
-      {
-        name: 'Legs',
-        exercises: [
-          { id: 'back_squat', sets: 4, reps: '6–8' },
-          { id: 'rdl', sets: 3, reps: '8–10' },
-          { id: 'lunge', sets: 3, reps: '10/leg' },
-          { id: 'calf_raise', sets: 4, reps: '15–20' },
-          { id: 'hanging_leg_raise', sets: 3, reps: '10–15' },
-        ],
-      },
-    ],
-  },
-]

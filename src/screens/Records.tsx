@@ -1,17 +1,30 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Chip, Modal, SystemWindow } from '../components/ui'
 import { EXERCISE_BY_ID } from '../data/exercises'
 import { ACHIEVEMENTS } from '../game/achievements'
-import { deleteWorkout, equipTitle, isValidState } from '../game/engine'
-import { useGame, useGameState } from '../store'
+import { deleteWorkout, equipTitle, isValidState, setPlan } from '../game/engine'
+import {
+  EQUIPMENT_LABEL,
+  EXPERIENCE_LABEL,
+  GOAL_LABEL,
+  LIMITATION_LABEL,
+  WEEKDAY_SHORT,
+  bmi,
+} from '../game/planner'
+import { Assessment } from './Assessment'
+import { AI_PROVIDERS, type AiProvider } from '../game/ai'
+import { loadAiSettings, saveAiSettings, useGame, useGameState, type AiSettings } from '../store'
 import type { Workout } from '../types'
 import { formatSet } from '../game/util'
 
 export function Records() {
-  const [view, setView] = useState<'titles' | 'history' | 'data'>('titles')
+  const [view, setView] = useState<'profile' | 'titles' | 'history' | 'data'>('profile')
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto">
+        <Chip active={view === 'profile'} onClick={() => setView('profile')}>
+          Profile
+        </Chip>
         <Chip active={view === 'titles'} onClick={() => setView('titles')}>
           Titles
         </Chip>
@@ -22,10 +35,107 @@ export function Records() {
           Data
         </Chip>
       </div>
+      {view === 'profile' && <ProfileView />}
       {view === 'titles' && <Titles />}
       {view === 'history' && <History />}
       {view === 'data' && <DataTools />}
     </div>
+  )
+}
+
+function ProfileView() {
+  const s = useGameState()
+  const { act } = useGame()
+  const [retake, setRetake] = useState(false)
+  const [ai, setAi] = useState<AiSettings | null>(null)
+  const pr = s.profile
+
+  useEffect(() => {
+    loadAiSettings().then(setAi)
+  }, [retake])
+
+  if (retake) {
+    return (
+      <Assessment
+        initial={pr}
+        submitLabel="Use this plan"
+        onCancel={() => setRetake(false)}
+        onComplete={(profile, plan) => {
+          act((st) => setPlan(st, profile, plan))
+          setRetake(false)
+        }}
+      />
+    )
+  }
+
+  const rows: [string, string][] = [
+    ['Goal', GOAL_LABEL[pr.goal]],
+    ['Experience', EXPERIENCE_LABEL[pr.experience]],
+    ['Body', `${pr.age} y · ${pr.heightCm} cm · ${pr.weightKg} kg · BMI ${bmi(pr).toFixed(1)}`],
+    ['Target weight', pr.targetWeightKg ? `${pr.targetWeightKg} kg` : '—'],
+    ['Equipment', EQUIPMENT_LABEL[pr.equipment]],
+    ['Schedule', `${[...pr.trainingDays].sort((a, b) => a - b).map((d) => WEEKDAY_SHORT[d]).join(', ')} · ${pr.sessionMinutes} min`],
+    ['Limitations', pr.limitations.length ? pr.limitations.map((l) => LIMITATION_LABEL[l]).join(', ') : 'None'],
+    ['Plan', `${s.plan.name} (${s.plan.source === 'ai' ? 'AI' : 'System'})`],
+  ]
+
+  return (
+    <>
+      <SystemWindow title="Profile">
+        <dl className="divide-y divide-edge/40 text-sm">
+          {rows.map(([k, v]) => (
+            <div key={k} className="flex justify-between gap-4 py-2">
+              <dt className="text-mute">{k}</dt>
+              <dd className="text-right">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <button className="btn-sys mt-4 w-full py-2.5" disabled={!!s.active} onClick={() => setRetake(true)}>
+          Retake assessment
+        </button>
+        <p className="mt-2 text-[11px] text-mute">
+          Builds a new plan from updated answers. Your level, rank, stats and history are kept.
+        </p>
+      </SystemWindow>
+
+      <SystemWindow title="AI coach">
+        {ai && (
+          <ul className="space-y-2 text-sm">
+            {(Object.keys(AI_PROVIDERS) as AiProvider[]).map((pv) => {
+              const k = ai.keys[pv]
+              return (
+                <li key={pv} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div>
+                      {AI_PROVIDERS[pv].label}
+                      {ai.provider === pv && k && <span className="ml-2 text-[10px] text-sys">IN USE</span>}
+                    </div>
+                    <div className="truncate font-mono text-xs text-mute">
+                      {k ? `${k.slice(0, 8)}…${k.slice(-4)}` : 'No key saved'}
+                    </div>
+                  </div>
+                  {k && (
+                    <button
+                      className="shrink-0 rounded border border-blood/60 px-3 py-1.5 text-xs text-blood"
+                      onClick={() => {
+                        const next = { ...ai, keys: { ...ai.keys, [pv]: undefined } }
+                        saveAiSettings(next).then(() => setAi(next))
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        <p className="mt-3 text-[11px] text-mute">
+          Add or switch keys by choosing &ldquo;AI coach&rdquo; when you retake the assessment. Keys stay on this device
+          and are never included in backups.
+        </p>
+      </SystemWindow>
+    </>
   )
 }
 

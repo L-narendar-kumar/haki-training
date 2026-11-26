@@ -12,7 +12,18 @@ function content(e: GameEvent): { heading: string; body: string; tone: 'sys' | '
         tone: 'gold',
       }
     case 'rankUp':
-      return { heading: `RANK ${e.rank}`, body: `Your rank has risen to ${e.rank}-Rank.`, tone: 'gold' }
+      return { heading: `RANK ${e.rank}`, body: `Trial passed. You are now ${e.rank}-Rank.`, tone: 'gold' }
+    case 'trialReady':
+      return {
+        heading: 'RANK-UP TRIAL',
+        body: `You've reached the level cap for Rank ${e.from}. Pass the trial in the Quests tab to rise to Rank ${e.to}. Levels are locked until then.`,
+        tone: 'gold',
+      }
+    case 'stat': {
+      const names = { str: 'STR', agi: 'AGI', end: 'END', vit: 'VIT' } as const
+      const parts = Object.entries(e.gains).map(([k, v]) => `${names[k as keyof typeof names]} +${v}`)
+      return { heading: 'STATS INCREASED', body: `Your training paid off: ${parts.join(', ')}.`, tone: 'sys' }
+    }
     case 'questClear':
       return {
         heading: 'QUEST COMPLETE',
