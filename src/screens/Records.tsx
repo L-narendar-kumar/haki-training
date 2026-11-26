@@ -12,7 +12,8 @@ import {
   bmi,
 } from '../game/planner'
 import { Assessment } from './Assessment'
-import { loadApiKey, saveApiKey, useGame, useGameState } from '../store'
+import { AI_PROVIDERS, type AiProvider } from '../game/ai'
+import { loadAiSettings, saveAiSettings, useGame, useGameState, type AiSettings } from '../store'
 import type { Workout } from '../types'
 import { formatSet } from '../game/util'
 
@@ -46,11 +47,11 @@ function ProfileView() {
   const s = useGameState()
   const { act } = useGame()
   const [retake, setRetake] = useState(false)
-  const [key, setKey] = useState<string | null>(null)
+  const [ai, setAi] = useState<AiSettings | null>(null)
   const pr = s.profile
 
   useEffect(() => {
-    loadApiKey().then(setKey)
+    loadAiSettings().then(setAi)
   }, [retake])
 
   if (retake) {
@@ -98,24 +99,41 @@ function ProfileView() {
       </SystemWindow>
 
       <SystemWindow title="AI coach">
-        {key ? (
-          <>
-            <p className="text-sm">
-              API key saved: <span className="font-mono text-mute">{key.slice(0, 10)}…{key.slice(-4)}</span>
-            </p>
-            <button
-              className="mt-3 rounded border border-blood/60 px-3 py-1.5 text-xs text-blood"
-              onClick={() => saveApiKey('').then(() => setKey(''))}
-            >
-              Remove key
-            </button>
-          </>
-        ) : (
-          <p className="text-sm text-ink/80">
-            No API key saved. Choose &ldquo;AI coach&rdquo; when you retake the assessment to add one.
-          </p>
+        {ai && (
+          <ul className="space-y-2 text-sm">
+            {(Object.keys(AI_PROVIDERS) as AiProvider[]).map((pv) => {
+              const k = ai.keys[pv]
+              return (
+                <li key={pv} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div>
+                      {AI_PROVIDERS[pv].label}
+                      {ai.provider === pv && k && <span className="ml-2 text-[10px] text-sys">IN USE</span>}
+                    </div>
+                    <div className="truncate font-mono text-xs text-mute">
+                      {k ? `${k.slice(0, 8)}…${k.slice(-4)}` : 'No key saved'}
+                    </div>
+                  </div>
+                  {k && (
+                    <button
+                      className="shrink-0 rounded border border-blood/60 px-3 py-1.5 text-xs text-blood"
+                      onClick={() => {
+                        const next = { ...ai, keys: { ...ai.keys, [pv]: undefined } }
+                        saveAiSettings(next).then(() => setAi(next))
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
         )}
-        <p className="mt-3 text-[11px] text-mute">The key stays on this device and is never included in backups.</p>
+        <p className="mt-3 text-[11px] text-mute">
+          Add or switch keys by choosing &ldquo;AI coach&rdquo; when you retake the assessment. Keys stay on this device
+          and are never included in backups.
+        </p>
       </SystemWindow>
     </>
   )

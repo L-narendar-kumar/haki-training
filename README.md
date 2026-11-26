@@ -7,7 +7,7 @@ A gym tracker that turns your workouts into an RPG. Log your sets, clear daily q
 ## Features
 
 - **Assessment and personal plan.** On first launch you answer a short assessment: goal, experience, body stats, equipment, training days, session length, and injuries. The app then builds a weekly plan (full body, upper/lower or push/pull/legs) that fits it. Exercises that need equipment you don't have, or that stress an injured area, are left out.
-- **Optional AI coach.** Paste your own Anthropic API key and Claude (`claude-haiku-5-5`) writes the plan instead. The key stays on your device and goes straight to Anthropic. The AI plan is checked against the app's exercise library, and the built-in plan is always available as a fallback.
+- **Optional AI coach.** Bring your own key and an AI writes the plan instead: **Google Gemini** (`gemini-3.8-flash`, free key from [AI Studio](https://aistudio.google.com); free-tier prompts may be used by Google to improve its products) or **Anthropic Claude** (`claude-haiku-5-5`, paid API credits). The key stays on your device and goes straight to the provider. The AI plan is checked against the app's exercise library, and the built-in plan is always available as a fallback. A Google AI Pro or Claude Pro subscription does not include API access.
 - **Quests from your plan.** On training days the quests come from that day's planned exercises. Rest days have one light recovery quest, and skipping it never causes a penalty.
 - **Goal-weighted rewards.** Your goal changes which training earns the most XP. Stats grow on their own: the stat you train most goes up, and your goal's stat gets an extra boost.
 - **Rank-up trials.** Each rank has a level cap. To rank up (E → D → C → B → A → S) you pass a fitness test based on your goal, within a single workout. Passing it moves your plan up a tier.
@@ -32,9 +32,9 @@ npm test         # game-logic tests (vitest)
 npm run build    # production build
 ```
 
-Stack: React 19, TypeScript, Vite, Tailwind CSS v4, vite-plugin-pwa, idb-keyval, and @anthropic-ai/sdk (loaded only when the AI coach is used).
+Stack: React 19, TypeScript, Vite, Tailwind CSS v4, vite-plugin-pwa, idb-keyval, @google/genai and @anthropic-ai/sdk (both loaded only when the AI coach is used).
 
-Game rules live in [`src/game/`](src/game): `planner.ts` (assessment → plan, target scaling), `ai.ts` (optional Claude plan writer), `progression.ts` (XP, levels, rank caps, goal weighting), `quests.ts` (daily quests and rank-up trials), `achievements.ts` (titles), and `engine.ts` (all state transitions).
+Game rules live in [`src/game/`](src/game): `planner.ts` (assessment → plan, target scaling), `ai.ts` (optional Gemini/Claude plan writer), `progression.ts` (XP, levels, rank caps, goal weighting), `quests.ts` (daily quests and rank-up trials), `achievements.ts` (titles), and `engine.ts` (all state transitions).
 
 Pushing to `main` deploys to GitHub Pages automatically through `.github/workflows/deploy.yml`.
 

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { PlanView } from '../components/PlanView'
 import { SystemWindow } from '../components/ui'
-import { AI_MODEL, AiPlanError, generateAiPlan } from '../game/ai'
+import { AI_PROVIDERS, AiPlanError, generateAiPlan, type AiProvider } from '../game/ai'
 import {
   EQUIPMENT_LABEL,
   EXPERIENCE_LABEL,
@@ -11,7 +11,7 @@ import {
   bmi,
   generateRulePlan,
 } from '../game/planner'
-import { loadApiKey, saveApiKey } from '../store'
+import { loadAiSettings, saveAiSettings } from '../store'
 import type { Equipment, Experience, Goal, Limitation, Profile, Sex, TrainingPlan } from '../types'
 
 const GOAL_HINT: Record<Goal, string> = {
@@ -116,15 +116,20 @@ export function Assessment({
   const [p, setP] = useState<Profile>(initial ?? blankProfile())
   const [step, setStep] = useState(0)
   const [engine, setEngine] = useState<'rules' | 'ai'>('rules')
-  const [apiKey, setApiKey] = useState('')
+  const [provider, setProvider] = useState<AiProvider>('gemini')
+  const [keys, setKeys] = useState<Partial<Record<AiProvider, string>>>({})
+  const apiKey = keys[provider] ?? ''
+  const setApiKey = (k: string) => setKeys((x) => ({ ...x, [provider]: k }))
+  const info = AI_PROVIDERS[provider]
   const [plan, setPlan] = useState<TrainingPlan | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadApiKey().then((k) => {
-      setApiKey(k)
-      if (k) setEngine('ai')
+    loadAiSettings().then((st) => {
+      setProvider(st.provider)
+      setKeys(st.keys)
+      if (st.keys[st.provider]) setEngine('ai')
     })
   }, [])
 
@@ -150,8 +155,8 @@ export function Assessment({
     setBusy(true)
     try {
       if (engine === 'ai') {
-        await saveApiKey(apiKey)
-        setPlan(await generateAiPlan(p, apiKey.trim()))
+        await saveAiSettings({ provider, keys })
+        setPlan(await generateAiPlan(p, provider, apiKey.trim()))
       } else {
         setPlan(generateRulePlan(p))
       }
@@ -355,24 +360,45 @@ export function Assessment({
           <Option
             active={engine === 'ai'}
             onClick={() => setEngine('ai')}
-            title="AI coach (Claude)"
-            hint="A personalised plan written by Claude. Needs your own Anthropic API key; costs well under $0.01."
+            title="AI coach"
+            hint="A personalised plan written by Gemini (free key) or Claude (paid key). You bring your own key."
           />
           {engine === 'ai' && (
-            <div className="pt-2">
-              <Field label="Anthropic API key">
+            <div className="space-y-3 pt-2">
+              <div className="grid grid-cols-2 gap-2">
+                {(Object.keys(AI_PROVIDERS) as AiProvider[]).map((pv) => (
+                  <button
+                    key={pv}
+                    type="button"
+                    aria-pressed={provider === pv}
+                    onClick={() => setProvider(pv)}
+                    className={`rounded border py-2 text-sm font-semibold ${
+                      provider === pv ? 'border-sys bg-sys/15 text-sys' : 'border-edge text-mute'
+                    }`}
+                  >
+                    {pv === 'gemini' ? 'Gemini · free' : 'Claude · paid'}
+                  </button>
+                ))}
+              </div>
+              <Field label={`${info.label} API key`}>
                 <input
                   type="password"
                   autoComplete="off"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-ant-…"
+                  placeholder={info.keyHint}
                   className={inputCls}
                 />
               </Field>
-              <p className="mt-2 text-[11px] leading-relaxed text-mute">
-                Stored only on this device and sent only to Anthropic. Get one at console.anthropic.com (API credits are
-                separate from a Claude subscription). Model: {AI_MODEL}.
+              {apiKey.trim() && !info.keyPattern.test(apiKey.trim()) && (
+                <p className="text-[11px] text-gold">
+                  That doesn&rsquo;t look like a {info.label} key ({info.keyHint}). Double-check you picked the right provider.
+                </p>
+              )}
+              <p className="text-[11px] leading-relaxed text-mute">
+                Get a key at {info.keyUrl}. {info.cost} The key is stored only on this device and sent only to{' '}
+                {provider === 'gemini' ? 'Google' : 'Anthropic'}. Subscriptions like Google AI Pro or Claude Pro don&rsquo;t
+                include API access. Model: {info.model}.
               </p>
             </div>
           )}

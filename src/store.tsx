@@ -1,6 +1,7 @@
 import { del, get, set } from 'idb-keyval'
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { isValidState, newGame, rollover, type Result } from './game/engine'
+import type { AiProvider } from './game/ai'
 import type { GameEvent, GameState, Profile, TrainingPlan } from './types'
 
 const KEY = 'haki-state'
@@ -120,19 +121,28 @@ export function useGameState(): GameState {
   return state
 }
 
-// ---------- Settings kept apart from game data (never exported in backups) ----------
+// ---------- AI settings, kept apart from game data (never exported in backups) ----------
 
-const API_KEY = 'haki-anthropic-key'
+const AI_SETTINGS = 'haki-ai-settings'
 
-export async function loadApiKey(): Promise<string> {
-  try {
-    return ((await get(API_KEY)) as string | undefined) ?? ''
-  } catch {
-    return ''
-  }
+export interface AiSettings {
+  provider: AiProvider
+  keys: Partial<Record<AiProvider, string>>
 }
 
-export async function saveApiKey(key: string): Promise<void> {
-  if (key.trim()) await set(API_KEY, key.trim())
-  else await del(API_KEY)
+export async function loadAiSettings(): Promise<AiSettings> {
+  try {
+    const s = (await get(AI_SETTINGS)) as AiSettings | undefined
+    if (s && (s.provider === 'gemini' || s.provider === 'claude')) return { provider: s.provider, keys: s.keys ?? {} }
+  } catch {
+    /* storage unavailable */
+  }
+  return { provider: 'gemini', keys: {} }
+}
+
+export async function saveAiSettings(settings: AiSettings): Promise<void> {
+  const keys = Object.fromEntries(
+    Object.entries(settings.keys).filter(([, v]) => typeof v === 'string' && v.trim()).map(([k, v]) => [k, v!.trim()]),
+  )
+  await set(AI_SETTINGS, { provider: settings.provider, keys })
 }
