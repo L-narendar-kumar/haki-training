@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PlanView } from '../components/PlanView'
 import { SystemWindow } from '../components/ui'
 import { AI_PROVIDERS, AiPlanError, generateAiPlan, type AiProvider } from '../game/ai'
@@ -125,6 +125,18 @@ export function Assessment({
   const [plan, setPlan] = useState<TrainingPlan | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+  const abortRef = useRef<AbortController | null>(null)
+
+  // Seconds counter while the AI works, so a slow request is visible.
+  useEffect(() => {
+    if (!busy) return
+    const t = setInterval(() => setElapsed((x) => x + 1), 1000)
+    return () => clearInterval(t)
+  }, [busy])
+
+  // Stop any request still running if the screen is left.
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   useEffect(() => {
     loadAiSettings().then((st) => {
@@ -153,17 +165,22 @@ export function Assessment({
 
   async function build() {
     setError(null)
+    setElapsed(0)
     setBusy(true)
     try {
       if (engine === 'ai') {
         await saveAiSettings({ provider, keys })
-        setPlan(await generateAiPlan(p, provider, apiKey.trim()))
+        const controller = new AbortController()
+        abortRef.current = controller
+        setPlan(await generateAiPlan(p, provider, apiKey.trim(), controller.signal))
       } else {
         setPlan(generateRulePlan(p))
       }
     } catch (e) {
-      setError(e instanceof AiPlanError ? e.message : 'Something went wrong while building the plan.')
+      const msg = e instanceof AiPlanError ? e.message : `Something went wrong: ${e instanceof Error ? e.message : String(e)}`
+      if (msg !== 'Cancelled.') setError(msg)
     } finally {
+      abortRef.current = null
       setBusy(false)
     }
   }
@@ -402,6 +419,21 @@ export function Assessment({
                 {provider === 'gemini' ? 'Google' : 'Anthropic'}. Subscriptions like Google AI Pro or Claude Pro don&rsquo;t
                 include API access. Model: {info.model}.
               </p>
+            </div>
+          )}
+          {busy && (
+            <div className="mt-3 flex items-center justify-between rounded border border-sys/50 p-3 text-sm">
+              <span>
+                {AI_PROVIDERS[provider].label} is writing your plan… <span className="tabular-nums text-mute">{elapsed}s</span>
+                {elapsed >= 20 && <span className="block text-xs text-mute">Busy servers can take up to a minute or two.</span>}
+              </span>
+              <button
+                type="button"
+                className="ml-3 shrink-0 rounded border border-edge px-3 py-1.5 text-xs text-mute"
+                onClick={() => abortRef.current?.abort()}
+              >
+                Cancel
+              </button>
             </div>
           )}
           {error && (
