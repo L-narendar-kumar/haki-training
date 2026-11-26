@@ -20,7 +20,7 @@ export const AI_PROVIDERS: Record<
   gemini: {
     label: 'Google Gemini',
     model: 'gemini-3.8-flash',
-    keyHint: 'AIza…',
+    keyHint: 'Paste your AI Studio key',
     keyUrl: 'aistudio.google.com',
     cost: 'Free with an AI Studio key (free-tier prompts may be used by Google to improve its products).',
     keyPattern: /^AIza/,
@@ -148,6 +148,9 @@ async function claudePlan(profile: Profile, apiKey: string): Promise<unknown> {
     if (err instanceof Anthropic.AuthenticationError) throw new AiPlanError('The API key was rejected. Check it and try again.')
     if (err instanceof Anthropic.PermissionDeniedError) throw new AiPlanError('This API key is not allowed to use the model.')
     if (err instanceof Anthropic.RateLimitError) throw new AiPlanError('Rate limited by the API. Wait a minute and try again.')
+    if (err instanceof Anthropic.APIError && (err.status ?? 0) >= 500) {
+      throw new AiPlanError('Claude is overloaded right now. Try again in a minute, or use the built-in plan.')
+    }
     if (err instanceof Anthropic.APIError) {
       throw new AiPlanError(
         err.status === 400 && /credit/i.test(err.message)
@@ -159,22 +162,34 @@ async function claudePlan(profile: Profile, apiKey: string): Promise<unknown> {
   }
 }
 
+/** Tried in order: if the main model stays overloaded, fall back to the lighter one. */
+const GEMINI_MODELS = [AI_PROVIDERS.gemini.model, 'gemini-3.5-flash-lite']
+
 async function geminiPlan(profile: Profile, apiKey: string): Promise<unknown> {
   const { GoogleGenAI, ApiError } = await import('@google/genai')
-  const ai = new GoogleGenAI({ apiKey })
+  // Retry brief server-side failures (overloaded / unavailable). Not 429: that is the free-tier quota.
+  const ai = new GoogleGenAI({
+    apiKey,
+    httpOptions: { retryOptions: { attempts: 3, initialDelay: 1, maxDelay: 8, httpStatusCodes: [500, 502, 503, 504] } },
+  })
   let response
-  try {
-    response = await ai.models.generateContent({
-      model: AI_PROVIDERS.gemini.model,
-      contents: userPrompt(profile),
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseJsonSchema: PLAN_JSON_SCHEMA,
-      },
-    })
-  } catch (err) {
-    if (err instanceof ApiError) {
+  for (const model of GEMINI_MODELS) {
+    try {
+      response = await ai.models.generateContent({
+        model,
+        contents: userPrompt(profile),
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseJsonSchema: PLAN_JSON_SCHEMA,
+        },
+      })
+      break
+    } catch (err) {
+      if (!(err instanceof ApiError)) throw new AiPlanError('Could not reach the AI service. Check your connection.')
+      if (err.status >= 500 && model !== GEMINI_MODELS.at(-1)) continue // try the lighter model
+      if (err.status >= 500)
+        throw new AiPlanError('Gemini is overloaded right now. Try again in a minute, or use the built-in plan.')
       if (err.status === 400 && /api key/i.test(err.message))
         throw new AiPlanError('The API key was rejected. Check it and try again.')
       if (err.status === 403)
@@ -186,8 +201,8 @@ async function geminiPlan(profile: Profile, apiKey: string): Promise<unknown> {
       if (err.status === 429) throw new AiPlanError('Free-tier limit reached. Wait a minute and try again.')
       throw new AiPlanError(`The AI request failed (${err.status}).`)
     }
-    throw new AiPlanError('Could not reach the AI service. Check your connection.')
   }
+  if (!response) throw new AiPlanError('Gemini is overloaded right now. Try again in a minute, or use the built-in plan.')
 
   if (response.promptFeedback?.blockReason) throw new AiPlanError('The AI declined to write this plan.')
   const finish = response.candidates?.[0]?.finishReason

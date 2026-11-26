@@ -121,6 +121,7 @@ export function Assessment({
   const apiKey = keys[provider] ?? ''
   const setApiKey = (k: string) => setKeys((x) => ({ ...x, [provider]: k }))
   const info = AI_PROVIDERS[provider]
+  const otherProvider: AiProvider = provider === 'gemini' ? 'claude' : 'gemini'
   const [plan, setPlan] = useState<TrainingPlan | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -390,9 +391,10 @@ export function Assessment({
                   className={inputCls}
                 />
               </Field>
-              {apiKey.trim() && !info.keyPattern.test(apiKey.trim()) && (
+              {apiKey.trim() && AI_PROVIDERS[otherProvider].keyPattern.test(apiKey.trim()) && (
                 <p className="text-[11px] text-gold">
-                  That doesn&rsquo;t look like a {info.label} key ({info.keyHint}). Double-check you picked the right provider.
+                  That looks like a {AI_PROVIDERS[otherProvider].label} key. Switch the provider above, or paste your{' '}
+                  {info.label} key.
                 </p>
               )}
               <p className="text-[11px] leading-relaxed text-mute">
