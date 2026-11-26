@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Bar, SystemWindow } from '../components/ui'
-import { claimQuest, workoutsOn } from '../game/engine'
+import { claimQuest, claimTrial, currentTrial, workoutsOn } from '../game/engine'
 import { clearBonusXp, questProgress } from '../game/quests'
 import { formatSeconds } from '../game/util'
 import { useGame, useGameState } from '../store'
-import type { Quest } from '../types'
+import type { QuestKind } from '../types'
 
-function fmt(q: Quest, n: number): string {
+function fmt(q: { kind: QuestKind }, n: number): string {
   if (q.kind === 'time') return formatSeconds(n)
   if (q.kind === 'volume') return `${Math.round(n).toLocaleString()} kg`
   return n.toLocaleString()
@@ -29,14 +29,47 @@ export function Quests({ goTrain }: { goTrain: () => void }) {
   const { act } = useGame()
   const remaining = useTimeToMidnight()
   const today = workoutsOn(s, s.daily.date)
+  const trial = currentTrial(s)
 
   return (
     <div className="space-y-4">
       <SystemWindow title="Daily Quest" right={<span className="text-xs text-mute">resets in {remaining}</span>}>
         <p className="text-sm text-ink/80">
-          Training to become a capable fighter. Progress comes from workouts you <b>finish</b> today.
+          {s.daily.restDay
+            ? 'Rest day. Recover so your body can grow stronger. Skipping recovery carries no penalty.'
+            : "Today's quests come from your plan. Progress counts from workouts you finish today."}
         </p>
       </SystemWindow>
+
+      {trial && (
+        <SystemWindow title={`Rank-up Trial: ${trial.from} → ${trial.to}`} className="border-gold/60">
+          <p className="text-sm text-ink/80">
+            Your level is locked until you prove yourself. Each challenge must be met within <b>a single workout</b>.
+          </p>
+          <ul className="mt-3 space-y-3">
+            {trial.challenges.map((c, i) => (
+              <li key={c.id}>
+                <div className="flex justify-between gap-3 text-sm">
+                  <span>{c.description}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-mute">
+                    {fmt(c, Math.min(trial.progress[i], c.target))} / {fmt(c, c.target)}
+                  </span>
+                </div>
+                <div className="mt-1.5">
+                  <Bar value={trial.progress[i]} max={c.target} />
+                </div>
+              </li>
+            ))}
+          </ul>
+          <button
+            className="btn-sys mt-4 w-full py-2.5"
+            disabled={!trial.passed}
+            onClick={() => act((st) => claimTrial(st))}
+          >
+            {trial.passed ? `Claim Rank ${trial.to}  (+${trial.xp} XP)` : 'Trial in progress'}
+          </button>
+        </SystemWindow>
+      )}
 
       {s.daily.quests.map((q) => {
         const prog = questProgress(q, today)
@@ -88,13 +121,15 @@ export function Quests({ goTrain }: { goTrain: () => void }) {
           <>
             <ul className="space-y-1 text-sm">
               <li>
-                ◆ <span className="text-gold">+{clearBonusXp(s.player.level)} XP</span>
+                ◆ <span className="text-gold">+{clearBonusXp(s.player.rank)} XP</span>
               </li>
               <li>◆ +1 stat point</li>
               <li>◆ Streak +1</li>
             </ul>
             <p className="mt-3 text-xs text-blood/90">
-              ⚠ WARNING: Failing to clear the daily quests will result in a penalty.
+              {s.daily.restDay
+                ? 'Rest days never cause a penalty.'
+                : '⚠ WARNING: Failing to clear the daily quests will result in a penalty.'}
             </p>
           </>
         )}

@@ -1,7 +1,8 @@
 import { Bar, SystemWindow } from '../components/ui'
 import { ACHIEVEMENT_BY_ID, lifetimeVolume } from '../game/achievements'
-import { allocateStat, workoutsOn } from '../game/engine'
-import { hakiTier, rankFor, xpToNext } from '../game/progression'
+import { allocateStat, currentTrial, workoutsOn } from '../game/engine'
+import { GOAL_LABEL } from '../game/planner'
+import { GOAL_STAT, hakiTier, levelCap, rankName, xpToNext } from '../game/progression'
 import { questProgress } from '../game/quests'
 import { useGame, useGameState } from '../store'
 import type { StatKey } from '../types'
@@ -17,7 +18,9 @@ export function Status({ goTo }: { goTo: (tab: 'quests' | 'train') => void }) {
   const s = useGameState()
   const { act } = useGame()
   const p = s.player
-  const rank = rankFor(p.level)
+  const rank = rankName(p.rank)
+  const trial = currentTrial(s)
+  const goalStat = GOAL_STAT[s.profile.goal]
   const title = p.title ? ACHIEVEMENT_BY_ID[p.title]?.name : null
   const today = workoutsOn(s, s.daily.date)
   const done = s.daily.quests.filter((q) => q.claimed || questProgress(q, today) >= q.target).length
@@ -34,6 +37,9 @@ export function Status({ goTo }: { goTo: (tab: 'quests' | 'train') => void }) {
             <div className="text-xs text-mute">
               Haki: <span className="text-ink">{hakiTier(p.level)}</span>
             </div>
+            <div className="text-xs text-mute">
+              Goal: <span className="text-ink">{GOAL_LABEL[s.profile.goal]}</span>
+            </div>
           </div>
           <div className="flex flex-col items-center">
             <div className="flex h-14 w-14 items-center justify-center rounded border border-sys/60 font-display text-3xl font-bold text-sys sys-glow">
@@ -49,7 +55,8 @@ export function Status({ goTo }: { goTo: (tab: 'quests' | 'train') => void }) {
             <span className="ml-1 text-4xl font-bold text-sys sys-glow">{p.level}</span>
           </div>
           <div className="text-right text-xs text-mute">
-            {p.xp} / {xpToNext(p.level)} XP
+            {trial ? 'LEVEL LOCKED' : `${p.xp} / ${xpToNext(p.level)} XP`}
+            <div className="text-[10px]">Rank cap: Lv. {Number.isFinite(levelCap(p.rank)) ? levelCap(p.rank) : '∞'}</div>
           </div>
         </div>
         <div className="mt-2">
@@ -60,6 +67,11 @@ export function Status({ goTo }: { goTo: (tab: 'quests' | 'train') => void }) {
           <span className="rounded border border-edge px-2 py-1">
             🔥 Streak: <b className="text-gold">{p.streak}</b>
           </span>
+          {trial && (
+            <button onClick={() => goTo('quests')} className="rounded border border-gold/70 px-2 py-1 text-gold">
+              ⚔ Rank-up trial: {trial.from} → {trial.to}
+            </button>
+          )}
           {p.penaltyActive && (
             <span className="rounded border border-blood/60 px-2 py-1 text-blood">
               ⚠ PENALTY: workout XP −50%
@@ -80,7 +92,10 @@ export function Status({ goTo }: { goTo: (tab: 'quests' | 'train') => void }) {
           {STATS.map(({ key, label, hint }) => (
             <div key={key} className="flex items-center justify-between rounded border border-edge/70 px-3 py-2">
               <div>
-                <div className="font-display text-sm font-bold tracking-widest text-mute">{label}</div>
+                <div className="font-display text-sm font-bold tracking-widest text-mute">
+                  {label}
+                  {key === goalStat && <span className="ml-1 text-gold" title="Your goal's stat">★</span>}
+                </div>
                 <div className="font-display text-2xl font-bold">{p.stats[key]}</div>
               </div>
               {p.statPoints > 0 && (
@@ -96,7 +111,8 @@ export function Status({ goTo }: { goTo: (tab: 'quests' | 'train') => void }) {
           ))}
         </div>
         <p className="mt-3 text-[11px] text-mute">
-          You get 3 stat points per level and 1 for each daily clear. Put them into what you’re training.
+          Stats also grow on their own from training: the stat you train most goes up, and your goal’s stat (★) gets
+          an extra boost. Spend points from level-ups, daily clears and trials however you like.
         </p>
       </SystemWindow>
 
@@ -107,7 +123,7 @@ export function Status({ goTo }: { goTo: (tab: 'quests' | 'train') => void }) {
               {done} / {s.daily.quests.length}
             </div>
             <div className="text-xs text-mute">
-              {s.daily.bonusClaimed ? 'All cleared. Rest well.' : 'objectives ready or done'}
+              {s.daily.bonusClaimed ? 'All cleared. Rest well.' : s.daily.restDay ? 'Rest day: recovery only' : 'objectives ready or done'}
             </div>
           </div>
           <div className="flex gap-2">

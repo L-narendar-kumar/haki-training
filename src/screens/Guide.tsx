@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { ExerciseList } from '../components/ExercisePicker'
 import { Chip, Modal, SystemWindow } from '../components/ui'
-import { CATEGORY_LABEL, EXERCISE_BY_ID, PLANS } from '../data/exercises'
-import { addExercise, startWorkout } from '../game/engine'
+import { PlanView } from '../components/PlanView'
+import { CATEGORY_LABEL } from '../data/exercises'
+import { addExercise, startPlannedWorkout } from '../game/engine'
 import { useGame, useGameState } from '../store'
 import type { Exercise, GameState } from '../types'
 import { formatSet } from '../game/util'
@@ -19,17 +20,18 @@ function personalBest(s: GameState, ex: Exercise): string | null {
 export function Guide({ goTrain }: { goTrain: () => void }) {
   const s = useGameState()
   const { act } = useGame()
-  const [view, setView] = useState<'exercises' | 'plans'>('exercises')
+  const [view, setView] = useState<'plan' | 'exercises'>('plan')
   const [open, setOpen] = useState<Exercise | null>(null)
+  const [weekday] = useState(() => new Date().getDay())
 
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
+        <Chip active={view === 'plan'} onClick={() => setView('plan')}>
+          My plan
+        </Chip>
         <Chip active={view === 'exercises'} onClick={() => setView('exercises')}>
           Exercises
-        </Chip>
-        <Chip active={view === 'plans'} onClick={() => setView('plans')}>
-          Training plans
         </Chip>
       </div>
 
@@ -38,44 +40,31 @@ export function Guide({ goTrain }: { goTrain: () => void }) {
           <ExerciseList onPick={setOpen} />
         </SystemWindow>
       ) : (
-        PLANS.map((plan) => (
-          <SystemWindow key={plan.id} title={plan.name} right={<span className="text-xs text-mute">{plan.level}</span>}>
-            <p className="text-sm text-ink/80">{plan.description}</p>
-            <p className="mt-1 text-xs text-mute">Frequency: {plan.perWeek}</p>
-            {plan.days.map((day) => (
-              <div key={day.name} className="mt-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display font-bold tracking-wider text-sys">{day.name}</h3>
-                  <button
-                    className="btn-sys px-3 py-1 text-xs"
-                    disabled={!!s.active}
-                    onClick={() => {
-                      act((st) => day.exercises.reduce((acc, ex) => addExercise(acc, ex.id), startWorkout(st)))
-                      goTrain()
-                    }}
-                  >
-                    {s.active ? 'Workout running' : 'Start'}
-                  </button>
-                </div>
-                <ul className="mt-2 divide-y divide-edge/40 text-sm">
-                  {day.exercises.map((e) => (
-                    <li key={e.id}>
-                      <button
-                        className="flex w-full justify-between py-2 text-left"
-                        onClick={() => setOpen(EXERCISE_BY_ID[e.id])}
-                      >
-                        <span>{EXERCISE_BY_ID[e.id].name}</span>
-                        <span className="tabular-nums text-mute">
-                          {e.sets} × {e.reps}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </SystemWindow>
-        ))
+        <SystemWindow title="My Plan">
+          <PlanView
+            plan={s.plan}
+            level={s.player.level}
+            rank={s.player.rank}
+            today={weekday}
+            onExercise={setOpen}
+            dayAction={(i) => (
+              <button
+                className="btn-sys px-3 py-1 text-xs"
+                disabled={!!s.active}
+                onClick={() => {
+                  act((st) => startPlannedWorkout(st, i))
+                  goTrain()
+                }}
+              >
+                {s.active ? 'Running' : 'Start'}
+              </button>
+            )}
+          />
+          <p className="mt-4 text-[11px] text-mute">
+            Targets rise as you level up and jump after each rank-up trial. Change your goal or schedule in Records →
+            Profile.
+          </p>
+        </SystemWindow>
       )}
 
       {open && (

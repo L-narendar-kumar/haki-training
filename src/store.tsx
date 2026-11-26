@@ -1,7 +1,7 @@
 import { del, get, set } from 'idb-keyval'
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { isValidState, newGame, rollover, type Result } from './game/engine'
-import type { GameEvent, GameState } from './types'
+import type { GameEvent, GameState, Profile, TrainingPlan } from './types'
 
 const KEY = 'haki-state'
 
@@ -12,7 +12,7 @@ interface Store {
   /** Apply a pure update. Return a Result to also emit events. */
   act: (fn: (s: GameState) => GameState | Result) => void
   dismissEvent: () => void
-  start: (name: string) => void
+  start: (profile: Profile, plan: TrainingPlan) => void
   replace: (s: GameState) => void
   reset: () => Promise<void>
 }
@@ -52,6 +52,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ref.current = saved
           setState(saved)
           doRollover()
+        } else if (saved) {
+          // Data from an older, incompatible version: start fresh.
+          del(KEY).catch(() => {})
         }
       })
       .catch((err) => console.error('load failed', err))
@@ -84,12 +87,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     events,
     act,
     dismissEvent: () => setEvents((q) => q.slice(1)),
-    start: (name) =>
-      commit(newGame(name), [
+    start: (profile, plan) =>
+      commit(newGame(profile, plan), [
         {
           type: 'info',
           title: 'YOU HAVE BEEN CHOSEN',
-          message: `Welcome, ${name.trim() || 'Hunter'}. Clear your daily quests to grow stronger. Fail them, and there will be a penalty.`,
+          message: `Welcome, ${profile.name.trim() || 'Hunter'}. Your plan is ready. Clear your daily quests to grow stronger. Fail them, and there will be a penalty.`,
         },
       ]),
     replace: (s) => commit(rollover(s).state),
@@ -115,4 +118,21 @@ export function useGameState(): GameState {
   const { state } = useGame()
   if (!state) throw new Error('no game state')
   return state
+}
+
+// ---------- Settings kept apart from game data (never exported in backups) ----------
+
+const API_KEY = 'haki-anthropic-key'
+
+export async function loadApiKey(): Promise<string> {
+  try {
+    return ((await get(API_KEY)) as string | undefined) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export async function saveApiKey(key: string): Promise<void> {
+  if (key.trim()) await set(API_KEY, key.trim())
+  else await del(API_KEY)
 }
